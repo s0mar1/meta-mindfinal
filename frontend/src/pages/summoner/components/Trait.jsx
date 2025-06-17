@@ -40,12 +40,12 @@ const Trait = ({ trait, showCount = true }) => {
   const color = trait.color || '#4A5563';
   const slug = trait.name.toLowerCase().replace(/\s+/g, '');
   const fallback = `https://raw.communitydragon.org/latest/game/assets/ux/traiticons/trait_icon_14_${slug}.png`;
-  const iconSrc  = trait.image_url || fallback;
+  const iconSrc  = trait.icon || trait.image_url || fallback;
 
   const HexagonWithBorder = (
     <div style={{ ...styles.traitHexagon, backgroundColor: color }}>
       <div style={{ ...styles.traitHexagon, width: '28px', height: '28px', backgroundColor: `${color}99` }}>
-        <img src={trait.icon} alt={trait.name} style={styles.traitImg} />
+        <img src={iconSrc} alt={trait.name} style={styles.traitImg} />
       </div>
     </div>
   );

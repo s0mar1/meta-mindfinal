@@ -63,7 +63,7 @@ const MatchDetailContent = ({ matchId, userPuuid }) => {
           {traits.map((t, i) => <Trait key={i} trait={t} showCount={false} />)}
         </div>
         <div style={styles.detailPlayerUnits}>
-          {participant.units.map((u, idx) => u.image_url && <Unit key={idx} unit={u} />)}
+          {participant.units.map((u, idx) => (u.icon || u.image_url) && <Unit key={idx} unit={u} />)}
         </div>
       </div>
     );

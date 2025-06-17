@@ -102,7 +102,7 @@ const MatchCard = ({ match, onToggle, isExpanded }) => {
             <button onClick={() => onToggle(match.matchId)} style={{ ...styles.detailButton, transform: isExpanded ? 'rotate(180deg)' : 'none' }} title={isExpanded ? '간략히' : '상세보기'}>▼</button>
           </div>
           <div style={styles.unitsContainer}>
-            {match.units.map((u, idx) => u.image_url && <Unit key={idx} unit={u} />)}
+            {match.units.map((u, idx) => (u.icon || u.image_url) && <Unit key={idx} unit={u} />)}
           </div>
         </div>
       </div>

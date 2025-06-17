@@ -8,9 +8,26 @@ const costColors = { 1: '#808080', 2: '#1E823C', 3: '#156293', 4: '#87259E', 5: 
 const getCostBorderStyle = (cost) => ({ border: `2px solid ${costColors[cost] || costColors[1]}` });
 const getCostColor = (cost) => costColors[cost] || costColors[1];
 
-const Trait = ({ trait }) => ( <div style={styles.traitIcon}> <img src={trait.image_url} alt={trait.name} style={{ width: '16px', height: '16px' }} title={trait.name} /> <span>{trait.tier_current}</span> </div> );
-const Item = ({ item }) => ( <img src={item.image_url} alt={item.name} style={styles.itemImage} title={item.name} /> );
-const Unit = ({ unit }) => ( <div style={styles.unit}> <div style={{ ...styles.starsContainer, color: getCostColor(unit.cost) }}> {'★'.repeat(unit.tier)} </div> <img src={unit.image_url} alt={unit.name} style={{ ...styles.unitImage, ...getCostBorderStyle(unit.cost) }} title={unit.name} /> <div style={styles.itemsContainer}> {unit.items.map((item, index) => item.image_url && <Item key={index} item={item} />)} </div> </div> );
+const Trait = ({ trait }) => (
+  <div style={styles.traitIcon}>
+    <img src={trait.icon || trait.image_url} alt={trait.name} style={{ width: '16px', height: '16px' }} title={trait.name} />
+    <span>{trait.tier_current}</span>
+  </div>
+);
+const Item = ({ item }) => (
+  <img src={item.icon || item.image_url} alt={item.name} style={styles.itemImage} title={item.name} />
+);
+const Unit = ({ unit }) => (
+  <div style={styles.unit}>
+    <div style={{ ...styles.starsContainer, color: getCostColor(unit.cost) }}>
+      {'★'.repeat(unit.tier)}
+    </div>
+    <img src={unit.icon || unit.image_url} alt={unit.name} style={{ ...styles.unitImage, ...getCostBorderStyle(unit.cost) }} title={unit.name} />
+    <div style={styles.itemsContainer}>
+      {unit.items.map((item, index) => (item.icon || item.image_url) && <Item key={index} item={item} />)}
+    </div>
+  </div>
+);
 
 // 8명의 플레이어 정보를 보여주는 카드
 const PlayerCard = ({ participant }) => (
@@ -22,11 +39,11 @@ const PlayerCard = ({ participant }) => (
         </div>
         <div style={styles.playerDetails}>
             <div style={styles.traitsContainer}>
-            {participant.traits.map((trait, index) => trait.image_url && <Trait key={index} trait={trait} />)}
-            </div>
-            <div style={styles.unitsContainer}>
-            {participant.units.map((unit, index) => unit.image_url && <Unit key={index} unit={unit} />)}
-            </div>
+            {participant.traits.map((trait, index) => (trait.icon || trait.image_url) && <Trait key={index} trait={trait} />)}
+          </div>
+          <div style={styles.unitsContainer}>
+            {participant.units.map((unit, index) => (unit.icon || unit.image_url) && <Unit key={index} unit={unit} />)}
+          </div>
         </div>
     </div>
 );
