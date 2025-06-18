@@ -6,24 +6,10 @@ const TFT_PATH = 'cdragon/tft';
 
 // Following the repository guidelines from AGENTS.md
 
-// 리전 상수 (환경변수 또는 고정값)
-const REGION = 'kr';
-
-// 패치 버전 조회 (에러 발생 시 'latest'로 폴백)
-async function fetchPatchVersion() {
-  try {
-    const res = await axios.get(`https://ddragon.leagueoflegends.com/realms/${REGION}.json`);
-    // TFT 전용 버전(n.tft)을 사용해야만 tft-champions.json 등이 존재합니다
-    return res.data.n.tft;
-  } catch (err) {
-    console.error('⚠️ 패치 버전 조회 실패, latest로 폴백합니다:', err.message);
-    return 'latest';
-  }
-}
-
 // TFT 데이터 로드
 export async function getTFTData() {
-  const version = await fetchPatchVersion();
+  // Community Dragon은 'latest' 버전을 지원합니다.
+  const version = 'latest';
   const [champRes, itemRes] = await Promise.all([
     axios.get(`${COMMUNITY_DRAGON_BASE}/${version}/${TFT_PATH}/champions.json`),
     axios.get(`${COMMUNITY_DRAGON_BASE}/${version}/${TFT_PATH}/items.json`)

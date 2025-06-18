@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { fetchPatchVersion } from './patchService.js';
 import { getCachedTFT, setCachedTFT } from '../cache/dataCache.js';
 
 const COMMUNITY_DRAGON_BASE = 'https://raw.communitydragon.org';
@@ -7,14 +6,9 @@ const TFT_PATH = 'cdragon/tft';
 
 // Following the repository guidelines from AGENTS.md
 
-export async function loadTFTData(version) {
-  if (!version) {
-    try {
-      version = await fetchPatchVersion();
-    } catch {
-      version = 'latest';
-    }
-  }
+/** 항상 최신 버전 데이터를 가져옵니다 */
+export async function getTFTData() {
+  const version = 'latest';
 
   const cached = getCachedTFT(version);
   if (cached) return cached;
@@ -45,5 +39,5 @@ export async function loadTFTData(version) {
   return payload;
 }
 
-// Alias for backward compatibility
-export const getTFTData = loadTFTData;
+// 이전 코드와의 호환성을 위해 남겨둡니다
+export const loadTFTData = getTFTData;
