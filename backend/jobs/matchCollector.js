@@ -8,7 +8,7 @@ const delay = ms => new Promise(res => setTimeout(res, ms));
 
 export const collectTopRankerMatches = async () => {
   try {
-    const tftData = await getTFTData();
+    const tftData = await getTFTData(process.env.TFT_PATCH_VERSION);
     if (!tftData) {
       console.error('TFT 데이터를 불러오지 못해 랭커 데이터 수집을 중단합니다.');
       return;

@@ -59,11 +59,13 @@ async function fetchCdragonAugments(patchVersion) {
 }
 
 // TFT 메타데이터 로드 및 가공
-async function getTFTData() {
-  const patchVersion = await fetchPatchVersion();
-  if (dataCache.has(patchVersion)) return dataCache.get(patchVersion);
-
-  console.log(`[TFT Service] Loading data for patch ${patchVersion}`);
+async function getTFTData(patchVersion) {
+  let version = patchVersion || process.env.TFT_PATCH_VERSION;
+  if (!version || version === 'latest') {
+    version = await fetchPatchVersion();
+  }
+  if (dataCache.has(version)) return dataCache.get(version);
+  console.log(`[TFT Service] Loading data for patch ${version}`);
 
   const endpoints = [
     { type: 'item',     locale: 'en_US', path: 'tft-item.json'   },
@@ -79,7 +81,7 @@ async function getTFTData() {
   const responses = {};
 
   await Promise.all(endpoints.map(async ({ type, locale, path, optional }) => {
-    const url = `${DD_BASE_URL}/${patchVersion}/data/${locale}/${path}`;
+    const url = `${DD_BASE_URL}/${version}/data/${locale}/${path}`;
     try {
       const res = await axios.get(url);
       responses[`${type}_${locale}`] = res.data.data;
@@ -96,15 +98,15 @@ async function getTFTData() {
   // augment en_US 페일백
   if (!Object.keys(responses['augment_en_US'] || {}).length) {
     console.log('[TFT Service] Fallback to CommunityDragon augments');
-    const cdrAug = await fetchCdragonAugments(patchVersion);
+    const cdrAug = await fetchCdragonAugments(version);
     responses['augment_en_US'] = cdrAug;
     responses['augment_ko_KR'] = {};
   }
 
   const getImageUrl = (type, fileName) =>
     type === 'augment'
-      ? `${CDRAGON_BASE_URL}/${patchVersion}/cdragon/tft/${fileName}`
-      : `${DD_BASE_URL}/${patchVersion}/img/tft-${type}/${fileName}`;
+      ? `${CDRAGON_BASE_URL}/${version}/cdragon/tft/${fileName}`
+      : `${DD_BASE_URL}/${version}/img/tft-${type}/${fileName}`;
 
   // 데이터 가공 헬퍼
   function process(type) {
@@ -124,10 +126,10 @@ async function getTFTData() {
   const traits    = process('trait');
   const augments  = process('augment');
 
-  const processed = { patchVersion, items, champions, traits, augments };
-  dataCache.set(patchVersion, processed);
+  const processed = { patchVersion: version, items, champions, traits, augments };
+  dataCache.set(version, processed);
 
-  console.log(`[TFT Service] Data ready for patch ${patchVersion}`);
+  console.log(`[TFT Service] Data ready for patch ${version}`);
   return processed;
 }
 

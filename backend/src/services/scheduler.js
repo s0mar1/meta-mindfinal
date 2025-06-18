@@ -6,7 +6,7 @@ import getTFTData from './tftData.js';
 
 const runScheduledJobs = async () => {
     console.log('스케줄러 시작. 먼저 TFT 데이터를 로드합니다...');
-    const tftData = await getTFTData();
+    const tftData = await getTFTData(process.env.TFT_PATCH_VERSION);
     if (!tftData) {
         console.error('TFT 데이터 로딩에 실패하여 스케줄링된 작업을 실행할 수 없습니다.');
         return;
