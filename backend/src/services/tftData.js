@@ -1,6 +1,11 @@
 // ===== File: backend/src/services/tftData.js =====
 import axios from 'axios';
 
+const COMMUNITY_DRAGON_BASE = 'https://raw.communitydragon.org';
+const TFT_PATH = 'cdragon/tft';
+
+// Following the repository guidelines from AGENTS.md
+
 // 리전 상수 (환경변수 또는 고정값)
 const REGION = 'kr';
 
@@ -20,19 +25,22 @@ async function fetchPatchVersion() {
 export async function getTFTData() {
   const version = await fetchPatchVersion();
   const [champRes, itemRes] = await Promise.all([
-    axios.get(`https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/tft-champions.json`),
-    axios.get(`https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/tft-items.json`)
+    axios.get(`${COMMUNITY_DRAGON_BASE}/${version}/${TFT_PATH}/champions.json`),
+    axios.get(`${COMMUNITY_DRAGON_BASE}/${version}/${TFT_PATH}/items.json`)
   ]);
 
-  const champions = champRes.data.data.map(c => ({
+  const toPng = p => (p ? p.replace(/\.tex$/i, '.png') : p);
+
+  const champions = champRes.data.map(c => ({
     ...c,
-    tileIcon: c.icon.replace(/\.tex$/i, '.png'),
+    tileIcon: toPng(c.squareIcon || c.icon || c.squareIconPath),
+    icon: toPng(c.icon || c.squareIconPath),
     name_ko: c.name
   }));
 
-  const items = itemRes.data.data.map(i => ({
+  const items = itemRes.data.map(i => ({
     ...i,
-    icon: i.icon.replace(/\.tex$/i, '.png')
+    icon: toPng(i.icon)
   }));
 
   return { champions, items };
