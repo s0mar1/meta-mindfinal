@@ -1,4 +1,7 @@
 import axios from 'axios';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 // TFT 데이터 캐시
 const dataCache = new Map();
@@ -7,6 +10,9 @@ const dataCache = new Map();
 const DD_REALM_URL = 'https://ddragon.leagueoflegends.com/realms/kr.json';
 const DD_BASE_URL = 'https://ddragon.leagueoflegends.com/cdn';
 const CDRAGON_BASE_URL = 'https://raw.communitydragon.org';
+
+const PATCH_OVERRIDE = process.env.TFT_PATCH_VERSION;
+const ASSET_SOURCE = process.env.TFT_ASSET_SOURCE || 'ddragon';
 
 // 리전별 TFT 패치 버전 조회
 async function fetchPatchVersion() {
@@ -60,10 +66,10 @@ async function fetchCdragonAugments(patchVersion) {
 
 // TFT 메타데이터 로드 및 가공
 async function getTFTData() {
-  const patchVersion = await fetchPatchVersion();
+  const patchVersion = PATCH_OVERRIDE || await fetchPatchVersion();
   if (dataCache.has(patchVersion)) return dataCache.get(patchVersion);
 
-  console.log(`[TFT Service] Loading data for patch ${patchVersion}`);
+  console.log(`[TFT Service] Loading data for patch ${patchVersion} (assets: ${ASSET_SOURCE})`);
 
   const endpoints = [
     { type: 'item',     locale: 'en_US', path: 'tft-item.json'   },
@@ -101,10 +107,14 @@ async function getTFTData() {
     responses['augment_ko_KR'] = {};
   }
 
-  const getImageUrl = (type, fileName) =>
-    type === 'augment'
+  const getImageUrl = (type, fileName) => {
+    if (ASSET_SOURCE === 'cdragon') {
+      return `${CDRAGON_BASE_URL}/${patchVersion}/cdragon/tft/${fileName}`;
+    }
+    return type === 'augment'
       ? `${CDRAGON_BASE_URL}/${patchVersion}/cdragon/tft/${fileName}`
       : `${DD_BASE_URL}/${patchVersion}/img/tft-${type}/${fileName}`;
+  };
 
   // 데이터 가공 헬퍼
   function process(type) {
