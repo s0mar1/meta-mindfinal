@@ -44,3 +44,6 @@ export async function loadTFTData(version) {
   setCachedTFT(version, payload);
   return payload;
 }
+
+// Alias for backward compatibility
+export const getTFTData = loadTFTData;

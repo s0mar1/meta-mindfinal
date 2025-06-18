@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get('/', async (req, res, next) => {
     try {
-        const tftData = await loadTFTData('latest');
+    const tftData = await loadTFTData();
         if (!tftData) {
             return res.status(503).json({ error: 'TFT 데이터를 불러오는 데 실패했습니다.' });
         }
