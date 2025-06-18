@@ -4,7 +4,7 @@ import express from 'express';
 import { getMatchDetail } from '../services/riotApi.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import DeckTier from '../models/DeckTier.js';
-import getTFTData from '../services/tftData.js';
+import { getTFTData } from '../services/tftDataService.js';
 
 // **** 새로 변경된 프롬프트 모듈 임포트 경로 및 이름 ****
 import systemRole from '../prompts/common/systemRole.js'; // 공통 시스템 역할

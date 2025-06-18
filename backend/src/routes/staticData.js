@@ -1,7 +1,7 @@
 // backend/src/routes/staticData.js
 
 import express from 'express';
-import getTFTData from '../services/tftData.js';
+import { getTFTData } from '../services/tftDataService.js';
 
 const router = express.Router();
 

@@ -2,7 +2,7 @@
 
 import express from 'express';
 import { getMatchDetail } from '../services/riotApi.js';
-import getTFTData from '../services/tftData.js';
+import { getTFTData } from '../services/tftDataService.js';
 import { getAccountsByPuuids } from '../services/riotAccountApi.js'; // 여러 계정 정보를 한번에 가져오는 서비스
 
 const router = express.Router();

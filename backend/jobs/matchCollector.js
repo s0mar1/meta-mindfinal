@@ -2,7 +2,7 @@
 import { getChallengerLeague, getSummonerBySummonerId, getAccountByPuuid, getMatchIdsByPUUID, getMatchDetail } from '../src/services/riotApi.js';
 import Match from '../src/models/Match.js';
 import Ranker from '../src/models/Ranker.js';
-import getTFTData from '../src/services/tftData.js';
+import { getTFTData } from '../src/services/tftDataService.js';
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 

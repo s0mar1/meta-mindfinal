@@ -1,6 +1,6 @@
 import Match      from '../src/models/Match.js';
 import DeckTier   from '../src/models/DeckTier.js';
-import getTFTData from '../src/services/tftData.js';
+import { getTFTData } from '../src/services/tftDataService.js';
 
 // (변경 없음) 이름에서 시즌 접두사 제거
 const cleanTFTName = name => name ? name.replace(/^TFT\d*_/i, '') : 'Unknown';
