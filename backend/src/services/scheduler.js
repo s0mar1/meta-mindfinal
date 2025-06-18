@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { collectTopRankerMatches } from '../../jobs/matchCollector.js';
 import { analyzeAndCacheDeckTiers } from '../../jobs/deckAnalyzer.js';
 import { analyzePlayerStats } from '../../jobs/playerStatsAnalyzer.js';
-import getTFTData from './tftData.js';
+import { getTFTData } from './tftDataService.js';
 
 const runScheduledJobs = async () => {
     console.log('스케줄러 시작. 먼저 TFT 데이터를 로드합니다...');

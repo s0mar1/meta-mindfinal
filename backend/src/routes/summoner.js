@@ -2,11 +2,10 @@
 
 import express from 'express';
 import { getAccountByRiotId, getSummonerByPuuid, getLeagueEntriesBySummonerId, getMatchIdsByPUUID, getMatchDetail } from '../services/riotApi.js';
-import getTFTData from '../services/tftData.js';
-import NodeCache from 'node-cache';
+import { getTFTData } from '../services/tftDataService.js';
+import { matchCache } from '../cache/matchCache.js';
 
 const router = express.Router();
-const cache = new NodeCache({ stdTTL: 600 });
 
 // Riot gameVersion (e.g., "Version 14.23.123.4567") -> ddragon patch (e.g., "14.23.1")
 const getPatchVersionFromGameVersion = (gameVersion) => {
@@ -23,7 +22,7 @@ router.get('/', async (req, res, next) => {
 
     const cacheKey = `${region}:${gameName}#${tagLine}`;
     if (forceRefresh !== 'true') {
-        const hit = cache.get(cacheKey);
+        const hit = matchCache.get(cacheKey);
         if (hit) return res.json(hit);
     }
     
@@ -42,7 +41,7 @@ router.get('/', async (req, res, next) => {
         if (!me) continue;
         
         const patchVersion = getPatchVersionFromGameVersion(matchDetail.info.game_version);
-        const tft = await getTFTData(patchVersion);
+        const tft = await getTFTData(region, patchVersion);
         if (!tft) {
             console.warn(`Skipping match ${matchId} due to missing data for patch ${patchVersion}`);
             continue;
@@ -80,7 +79,7 @@ router.get('/', async (req, res, next) => {
     }
 
     const payload = { account: { ...account, ...summonerInfo }, league: leagueEntry, matches };
-    cache.set(cacheKey, payload);
+    matchCache.set(cacheKey, payload);
     res.json(payload);
   } catch (err) {
     next(err);
