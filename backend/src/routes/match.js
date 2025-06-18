@@ -2,7 +2,7 @@
 
 import express from 'express';
 import { getMatchDetail } from '../services/riotApi.js';
-import { getTFTData } from '../services/tftDataService.js';
+import { loadTFTData } from '../services/tftDataService.js';
 import { getAccountsByPuuids } from '../services/riotAccountApi.js'; // 여러 계정 정보를 한번에 가져오는 서비스
 
 const router = express.Router();
@@ -25,7 +25,7 @@ router.get('/:matchId', async (req, res, next) => {
     }
 
     // 1. TFT 마스터 데이터와 경기 상세 정보를 가져옵니다.
-    const tft = await getTFTData();
+    const tft = await loadTFTData();
     const matchDetail = await getMatchDetail(matchId);
 
     if (!tft || !matchDetail) {

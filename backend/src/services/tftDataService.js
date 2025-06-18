@@ -2,7 +2,11 @@ import axios from 'axios';
 import { fetchPatchVersion } from './patchService.js';
 import { getCachedTFT, setCachedTFT } from '../cache/dataCache.js';
 
-async function loadTFTData(version) {
+export async function loadTFTData(version) {
+  if (!version) {
+    version = await fetchPatchVersion();
+  }
+
   const cached = getCachedTFT(version);
   if (cached) return cached;
 
@@ -28,9 +32,4 @@ async function loadTFTData(version) {
   const payload = { champions, items };
   setCachedTFT(version, payload);
   return payload;
-}
-
-export async function getTFTData(region, explicitVersion) {
-  const version = explicitVersion ?? await fetchPatchVersion(region);
-  return loadTFTData(version);
 }

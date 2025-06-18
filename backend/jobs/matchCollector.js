@@ -2,13 +2,13 @@
 import { getChallengerLeague, getSummonerBySummonerId, getAccountByPuuid, getMatchIdsByPUUID, getMatchDetail } from '../src/services/riotApi.js';
 import Match from '../src/models/Match.js';
 import Ranker from '../src/models/Ranker.js';
-import { getTFTData } from '../src/services/tftDataService.js';
+import { loadTFTData } from '../src/services/tftDataService.js';
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 export const collectTopRankerMatches = async () => {
   try {
-    const tftData = await getTFTData();
+    const tftData = await loadTFTData();
     if (!tftData) {
       console.error('TFT 데이터를 불러오지 못해 랭커 데이터 수집을 중단합니다.');
       return;

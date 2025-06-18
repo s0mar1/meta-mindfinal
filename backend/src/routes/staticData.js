@@ -1,13 +1,13 @@
 // backend/src/routes/staticData.js
 
 import express from 'express';
-import { getTFTData } from '../services/tftDataService.js';
+import { loadTFTData } from '../services/tftDataService.js';
 
 const router = express.Router();
 
 router.get('/', async (req, res, next) => {
     try {
-        const tftData = await getTFTData('latest');
+        const tftData = await loadTFTData('latest');
         if (!tftData) {
             return res.status(503).json({ error: 'TFT 데이터를 불러오는 데 실패했습니다.' });
         }

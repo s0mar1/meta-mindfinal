@@ -4,7 +4,7 @@ import express from 'express';
 import { getMatchDetail } from '../services/riotApi.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import DeckTier from '../models/DeckTier.js';
-import { getTFTData } from '../services/tftDataService.js';
+import { loadTFTData } from '../services/tftDataService.js';
 
 // **** 새로 변경된 프롬프트 모듈 임포트 경로 및 이름 ****
 import systemRole from '../prompts/common/systemRole.js'; // 공통 시스템 역할
@@ -30,7 +30,7 @@ router.post('/analyze', async (req, res, next) => {
   }
 
   try {
-    const tftData = await getTFTData();
+    const tftData = await loadTFTData();
     if (!tftData || !tftData.traitMap || !tftData.champions || !tftData.items) {
       console.error('TFT static data is incomplete or invalid:', tftData);
       throw new Error("TFT 정적 데이터(특성 맵, 챔피언, 아이템)를 로드할 수 없거나 형식이 올바르지 않습니다.");
@@ -148,7 +148,7 @@ router.post('/qna', async (req, res, next) => {
   }
 
   try {
-    const tftData = await getTFTData();
+    const tftData = await loadTFTData();
     let metaDataForAI = '';
     if (tftData && tftData.traitMap && tftData.champions && tftData.items) {
         const allMetaDecks = await DeckTier.find({ totalGames: { $gte: 3 } })

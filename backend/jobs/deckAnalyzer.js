@@ -1,6 +1,6 @@
 import Match      from '../src/models/Match.js';
 import DeckTier   from '../src/models/DeckTier.js';
-import { getTFTData } from '../src/services/tftDataService.js';
+import { loadTFTData } from '../src/services/tftDataService.js';
 
 // (변경 없음) 이름에서 시즌 접두사 제거
 const cleanTFTName = name => name ? name.replace(/^TFT\d*_/i, '') : 'Unknown';
@@ -18,7 +18,7 @@ const calculateTierRank = (averagePlacement, top4Rate) => {
 export const analyzeAndCacheDeckTiers = async () => {
   console.log('--- [최종] 덱 티어리스트 분석 작업 시작 ---');
   try {
-    const tftData = await getTFTData();                  // {items, champions, traits, traitMap, krNameMap, currentSet}
+    const tftData = await loadTFTData();                  // {items, champions, traits, traitMap, krNameMap, currentSet}
     if (!tftData) {
       console.error('TFT 데이터를 불러오지 못해 덱 분석을 중단합니다.');
       return;

@@ -2,7 +2,7 @@
 
 import express from 'express';
 import { getAccountByRiotId, getSummonerByPuuid, getLeagueEntriesBySummonerId, getMatchIdsByPUUID, getMatchDetail } from '../services/riotApi.js';
-import { getTFTData } from '../services/tftDataService.js';
+import { loadTFTData } from '../services/tftDataService.js';
 import { matchCache } from '../cache/matchCache.js';
 
 const router = express.Router();
@@ -41,7 +41,7 @@ router.get('/', async (req, res, next) => {
         if (!me) continue;
         
         const patchVersion = getPatchVersionFromGameVersion(matchDetail.info.game_version);
-        const tft = await getTFTData(region, patchVersion);
+        const tft = await loadTFTData(patchVersion);
         if (!tft) {
             console.warn(`Skipping match ${matchId} due to missing data for patch ${patchVersion}`);
             continue;

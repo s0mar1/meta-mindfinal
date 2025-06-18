@@ -51,4 +51,3 @@ export async function runScheduledJobs() {
 }
 
 // default export 추가: named export 외에도 default 로 import 가능
-export default { getTFTData, runScheduledJobs };
