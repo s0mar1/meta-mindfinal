@@ -8,7 +8,8 @@ const REGION = 'kr';
 async function fetchPatchVersion() {
   try {
     const res = await axios.get(`https://ddragon.leagueoflegends.com/realms/${REGION}.json`);
-    return res.data.n.champion;
+    // TFT 전용 버전(n.tft)을 사용해야만 tft-champions.json 등이 존재합니다
+    return res.data.n.tft;
   } catch (err) {
     console.error('⚠️ 패치 버전 조회 실패, latest로 폴백합니다:', err.message);
     return 'latest';
