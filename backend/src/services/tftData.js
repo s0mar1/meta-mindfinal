@@ -134,7 +134,25 @@ async function getTFTData() {
   const traits    = process('trait');
   const augments  = process('augment');
 
-  const processed = { patchVersion, items, champions, traits, augments };
+  const traitMap = new Map();
+  const krNameMap = new Map();
+  traits.forEach(t => {
+    traitMap.set(t.apiName.toLowerCase(), t);
+    krNameMap.set(t.apiName.toLowerCase(), t.name);
+  });
+
+  const currentSet = patchVersion.split('.')[0];
+
+  const processed = {
+    patchVersion,
+    currentSet,
+    items,
+    champions,
+    traits,
+    traitMap,
+    krNameMap,
+    augments
+  };
   dataCache.set(patchVersion, processed);
 
   console.log(`[TFT Service] Data ready for patch ${patchVersion}`);
