@@ -4,11 +4,13 @@ import { analyzeAndCacheDeckTiers } from '../../jobs/deckAnalyzer.js';
 import { analyzePlayerStats } from '../../jobs/playerStatsAnalyzer.js';
 import { getTFTData } from './tftDataService.js';
 
-const runScheduledJobs = async () => {
+function runScheduledJobs() {
     console.log('스케줄러 시작. 먼저 TFT 데이터를 로드합니다...');
-    const tftData = await getTFTData();
-    if (!tftData) {
-        console.error('TFT 데이터 로딩에 실패하여 스케줄링된 작업을 실행할 수 없습니다.');
+    let tftData;
+    try {
+        tftData = getTFTData();
+    } catch (err) {
+        console.error('TFT 데이터 로드 실패:', err);
         return;
     }
     console.log('TFT 데이터 준비 완료. 예약된 작업을 설정합니다.');
@@ -34,9 +36,9 @@ const runScheduledJobs = async () => {
     // 서버가 시작될 때 모든 작업을 순차적으로 1회 실행
     console.log('서버 시작. 1회성 초기 데이터 작업을 순차적으로 실행합니다.');
     try {
-        await collectTopRankerMatches();
-        await analyzeAndCacheDeckTiers(tftData);
-        await analyzePlayerStats();
+        collectTopRankerMatches();
+        analyzeAndCacheDeckTiers(tftData);
+        analyzePlayerStats();
         console.log('초기 데이터 작업이 모두 성공적으로 완료되었습니다.');
     } catch (error) {
         console.error('초기 작업 실행 중 에러 발생:', error);

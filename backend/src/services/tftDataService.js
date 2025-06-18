@@ -1,42 +1,20 @@
-import axios from 'axios';
-import { getCachedTFT, setCachedTFT } from '../cache/dataCache.js';
+import championsData from '../../data/champions.json' assert { type: 'json' };
+import itemsData from '../../data/items.json' assert { type: 'json' };
 
-const COMMUNITY_DRAGON_BASE = 'https://raw.communitydragon.org';
-const TFT_PATH = 'cdragon/tft';
+/**
+ * Load TFT static data from local JSON files.
+ * The JSON may either be an array or wrapped in a { data: [...] } object.
+ */
+export function getTFTData() {
+  const champions = Array.isArray(championsData)
+    ? championsData
+    : championsData.data || Object.values(championsData);
 
-// Following the repository guidelines from AGENTS.md
+  const items = Array.isArray(itemsData)
+    ? itemsData
+    : itemsData.data || itemsData;
 
-/** 항상 최신 버전 데이터를 가져옵니다 */
-export async function getTFTData() {
-  const version = 'latest';
-
-  const cached = getCachedTFT(version);
-  if (cached) return cached;
-
-  const [champRes, itemRes] = await Promise.all([
-    axios.get(`${COMMUNITY_DRAGON_BASE}/${version}/${TFT_PATH}/champions.json`),
-    axios.get(`${COMMUNITY_DRAGON_BASE}/${version}/${TFT_PATH}/items.json`)
-  ]);
-
-  const toPng = p => (p ? p.replace(/\.tex$/i, '.png') : p);
-
-  const champions = champRes.data.map(c => ({
-    apiName: c.apiName || c.characterName || c.character_id,
-    name: c.name,
-    icon: toPng(c.icon || c.squareIconPath),
-    cost: c.cost ?? c.rarity,
-    tileIcon: toPng(c.squareIcon || c.icon || c.squareIconPath)
-  }));
-
-  const items = itemRes.data.map(i => ({
-    apiName: i.apiName || i.id,
-    name: i.name,
-    icon: toPng(i.icon)
-  }));
-
-  const payload = { champions, items };
-  setCachedTFT(version, payload);
-  return payload;
+  return { champions, items };
 }
 
 // 이전 코드와의 호환성을 위해 남겨둡니다
