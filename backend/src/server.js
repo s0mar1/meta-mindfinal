@@ -29,7 +29,7 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 
-// [최종 수정] tft-datadragon 폴더 전체를 웹으로 제공합니다.
+// [핵심 추가] tft-datadragon 폴더 전체를 웹으로 제공합니다.
 app.use('/datadragon', express.static(path.join(__dirname, '../tft-datadragon')));
 
 app.use('/api/static-data', staticDataRoutes);

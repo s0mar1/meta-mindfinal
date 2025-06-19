@@ -1,5 +1,4 @@
 // backend/src/services/tftDataService.js
-
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,14 +6,16 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ❗ 다음 패치 시, 이 버전 번호만 수정하면 됩니다.
 const LATEST_PATCH_VERSION = '15.12.1';
+
 const BASE_DATA_PATH = path.join(__dirname, `../../tft-datadragon/${LATEST_PATCH_VERSION}/data/ko_kr`);
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 const BASE_IMAGE_URL = `${BACKEND_URL}/datadragon/${LATEST_PATCH_VERSION}/img`;
 
 let cachedTFTData = null;
 
-// 특성 등급 배경 이미지 URL 생성 (이전과 동일)
+// 특성 등급별 배경 이미지 URL을 생성하는 함수 (외부에서 사용 가능하도록 export)
 export const getTraitBackgroundUrl = (style) => {
     const styleNum = style > 5 ? 5 : style;
     return `${BASE_IMAGE_URL}/teamplanner_trait_hexes/${styleNum}.png`;
@@ -29,8 +30,6 @@ export function loadTFTData() {
     const itemsRaw = JSON.parse(fs.readFileSync(path.join(BASE_DATA_PATH, 'tft-item.json'), 'utf-8'));
     const traitsRaw = JSON.parse(fs.readFileSync(path.join(BASE_DATA_PATH, 'tft-trait.json'), 'utf-8'));
 
-    // ======================= [핵심 수정: URL 생성 로직 단순화] =======================
-    // 이제 이 함수는 추측하지 않고, JSON 데이터에 있는 group과 full 속성을 그대로 사용합니다.
     const toAbsoluteUrl = (imageObject) => {
         if (!imageObject?.full || !imageObject?.group) return null;
         const subfolder = imageObject.group.toLowerCase();
@@ -39,32 +38,26 @@ export function loadTFTData() {
     };
 
     const getTileIconUrl = (imageObject) => {
-        if (!imageObject?.full) return null;
+        if (!imageObject?.full || !imageObject?.group) return null;
         const subfolder = imageObject.group.toLowerCase();
         let fileName = imageObject.full.toLowerCase();
-        // 사각형 아이콘 파일명 규칙만 정확히 적용
         if (fileName.includes('.tft_set')) {
             fileName = fileName.replace('.tft_set', '_square.tft_set');
         } else {
             const extension = path.extname(fileName);
             const baseName = path.basename(fileName, extension);
-            if (!baseName.endsWith('_square')) {
-                fileName = `${baseName}_square${extension}`;
-            }
+            if (!baseName.endsWith('_square')) fileName = `${baseName}_square${extension}`;
         }
         return `${BASE_IMAGE_URL}/${subfolder}/${fileName}`;
     };
-    // ======================================================================
-
-    // ======================= [핵심 수정: 모든 필터링 제거] =======================
+    
     const championsData = Object.values(championsRaw.data);
     const traitsData = Object.values(traitsRaw.data);
     const itemsData = Object.values(itemsRaw.data);
-    // ======================================================================
     
-    const champions = championsData.map(c => ({...c, apiName: c.id, icon: toAbsoluteUrl(c.image), tileIcon: getTileIconUrl(c.image)}));
-    const items = itemsData.map(i => ({...i, apiName: i.id, icon: toAbsoluteUrl(i.image)}));
-    const traits = traitsData.map(t => ({...t, apiName: t.id, icon: toAbsoluteUrl(t.image)}));
+    const champions = championsData.map(c => ({ ...c, apiName: c.id, icon: toAbsoluteUrl(c.image), tileIcon: getTileIconUrl(c.image) }));
+    const items = itemsData.map(i => ({ ...i, apiName: i.id, icon: toAbsoluteUrl(i.image) }));
+    const traits = traitsData.map(t => ({ ...t, apiName: t.id, icon: toAbsoluteUrl(t.image) }));
       
     const traitMap = new Map(traits.map(t => [t.apiName.toLowerCase(), t]));
     const krNameMap = new Map();

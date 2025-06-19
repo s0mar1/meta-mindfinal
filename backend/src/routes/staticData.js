@@ -9,6 +9,7 @@ router.get('/', (req, res, next) => {
         const tftData = loadTFTData();
         res.json(tftData);
     } catch (error) {
+        // 데이터 로딩 중 에러가 발생하면 중앙 에러 핸들러로 전달합니다.
         next(error);
     }
 });

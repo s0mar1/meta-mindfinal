@@ -24,6 +24,7 @@ export const TFTDataProvider = ({ children }) => {
     const fetchTFTData = async () => {
       try {
         setLoading(true);
+        // [핵심] 백엔드의 /api/static-data 엔드포인트에서 모든 데이터를 한번에 가져옵니다.
         const response = await axios.get('/api/static-data');
         const data = response.data;
         
@@ -31,6 +32,7 @@ export const TFTDataProvider = ({ children }) => {
           champions: data.champions || [],
           items: data.items || [],
           traits: data.traits || [],
+          // 백엔드에서 생성된 Map은 JSON으로 전달되지 않으므로, 프론트에서 다시 생성합니다.
           traitMap: new Map((data.traits || []).map(t => [t.apiName.toLowerCase(), t])),
           krNameMap: new Map([
             ...(data.champions || []).map(c => [c.apiName.toLowerCase(), c.name]),
@@ -47,7 +49,7 @@ export const TFTDataProvider = ({ children }) => {
     };
 
     fetchTFTData();
-  }, []);
+  }, []); // 최초 1회만 실행
 
   const showTooltip = (championData, event) => {
     setTooltip({
