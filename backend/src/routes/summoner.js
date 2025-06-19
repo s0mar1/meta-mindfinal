@@ -1,24 +1,24 @@
 // backend/src/routes/summoner.js
 
 import express from 'express';
-import { getAccountByRiotId, getSummonerByPuuid, getLeagueEntriesBySummonerId, getMatchIdsByPUUID, getMatchDetail } from '../services/riotApi.js';
-import { loadTFTData } from '../services/tftDataService.js';
+// [수정] riotApi 서비스에서 필요한 모든 함수를 가져옵니다.
+import { 
+    getAccountByRiotId, 
+    getSummonerByPuuid, 
+    getLeagueEntriesBySummonerId, 
+    getMatchIdsByPUUID, 
+    getMatchDetail 
+} from '../services/riotApi.js';
+// [핵심 수정] 불완전한 tftDataService 대신, Community Dragon에서 모든 데이터를 가져오는 tftData.js를 사용합니다.
+import { getTFTData } from '../services/tftData.js'; 
 import { matchCache } from '../cache/matchCache.js';
 
 const router = express.Router();
 
-// Riot gameVersion (e.g., "Version 14.23.123.4567") -> ddragon patch (e.g., "14.23.1")
-const getPatchVersionFromGameVersion = (gameVersion) => {
-    if (!gameVersion) return 'latest';
-    const parts = gameVersion.split(' ');
-    const versionParts = parts.length > 1 ? parts[1].split('.') : [];
-    return versionParts.length >= 3 ? `${versionParts[0]}.${versionParts[1]}.${versionParts[2]}` : 'latest';
-};
-
 router.get('/', async (req, res, next) => {
   try {
     const { region, gameName, tagLine, forceRefresh } = req.query;
-    if (!region || !gameName || !tagLine) return res.status(400).json({ error:'region, gameName, tagLine 필요' });
+    if (!region || !gameName || !tagLine) return res.status(400).json({ error:'region, gameName, tagLine이 필요합니다.' });
 
     const cacheKey = `${region}:${gameName}#${tagLine}`;
     if (forceRefresh !== 'true') {
@@ -26,6 +26,12 @@ router.get('/', async (req, res, next) => {
         if (hit) return res.json(hit);
     }
     
+    // [핵심 수정] 모든 정적 데이터를 API 통신을 통해 한 번만 가져옵니다.
+    const tftData = await getTFTData();
+    if (!tftData || !tftData.champions || !tftData.items || !tftData.traits) {
+      return res.status(503).json({ error: 'TFT 정적 데이터를 불러오는 데 실패했습니다.'});
+    }
+
     const account = await getAccountByRiotId(gameName, tagLine);
     const summonerInfo = await getSummonerByPuuid(account.puuid);
     const leagueEntry = await getLeagueEntriesBySummonerId(summonerInfo.id);
@@ -39,18 +45,11 @@ router.get('/', async (req, res, next) => {
 
         const me = matchDetail.info.participants.find(p => p.puuid === account.puuid);
         if (!me) continue;
-        
-        const patchVersion = getPatchVersionFromGameVersion(matchDetail.info.game_version);
-        const tft = await loadTFTData(patchVersion);
-        if (!tft) {
-            console.warn(`Skipping match ${matchId} due to missing data for patch ${patchVersion}`);
-            continue;
-        }
 
+        // 이제 루프 안에서 tftData를 계속 부를 필요가 없습니다.
         const units = me.units.map(u => {
-          const champData = tft.champions.find(c => c.apiName === u.character_id);
-          // Riot API의 itemNames (예: TFT_Item_RedBuff)와 Data Dragon의 apiName을 매칭
-          const itemData = (u.itemNames || []).map(itemName => tft.items.find(i => i.apiName === itemName)).filter(Boolean);
+          const champData = tftData.champions.find(c => c.apiName === u.character_id);
+          const itemData = (u.itemNames || []).map(itemName => tftData.items.find(i => i.apiName === itemName)).filter(Boolean);
           
           return {
             character_id: u.character_id,
@@ -62,7 +61,8 @@ router.get('/', async (req, res, next) => {
         });
 
         const traits = (me.traits || []).map(t => {
-            const traitData = tft.traits.find(td => td.apiName === t.name);
+            // 이제 tftData.traits가 존재하므로 에러가 발생하지 않습니다.
+            const traitData = tftData.traits.find(td => td.apiName === t.name);
             return {
                 name: traitData?.name || t.name,
                 icon: traitData?.icon,
