@@ -5,3 +5,53 @@
 body {
   @apply bg-background-base text-text-primary font-sans;
 }
+.hexagon-bg {
+  position: relative;
+  width: 32px;
+  height: 18.48px; /* 비율에 맞는 높이 */
+  margin: 9.24px 0;
+  background-color: #888; /* 기본 배경색 */
+  border-left: solid 2px #333; /* 그림자 효과를 위한 테두리 */
+  border-right: solid 2px #333;
+  filter: drop-shadow(0px 2px 1px rgba(0,0,0,0.4)); /* 입체감을 위한 그림자 */
+}
+
+.hexagon-bg:before,
+.hexagon-bg:after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  width: 22.63px;
+  height: 22.63px;
+  -webkit-transform: scaleY(0.5774) rotate(-45deg);
+  -ms-transform: scaleY(0.5774) rotate(-45deg);
+  transform: scaleY(0.5774) rotate(-45deg);
+  background-color: inherit;
+  left: 2.6865px;
+  border-top: solid 2.8284px #333;
+  border-right: solid 2.8284px #333;
+}
+
+.hexagon-bg:before {
+  top: -11.3137px;
+}
+
+.hexagon-bg:after {
+  bottom: -11.3137px;
+}
+
+/* 등급별 색상 및 그라데이션, 광원 효과 */
+.hexagon-bronze { background-image: radial-gradient(circle at 50% 0, #D9A06A, #B08D57 80%); border-color: #61482E; }
+.hexagon-bronze:before, .hexagon-bronze:after { border-color: #61482E; }
+
+.hexagon-silver { background-image: radial-gradient(circle at 50% 0, #E0E8F0, #AEC0CE 80%); border-color: #687987; }
+.hexagon-silver:before, .hexagon-silver:after { border-color: #687987; }
+
+.hexagon-gold { background-image: radial-gradient(circle at 50% 0, #FFEC8A, #D9A441 80%); border-color: #8C6A28; }
+.hexagon-gold:before, .hexagon-gold:after { border-color: #8C6A28; }
+
+.hexagon-chromatic { background-image: radial-gradient(circle at 50% 0, #B9F2FF, #53C1C1 80%); border-color: #2D8E8E; }
+.hexagon-chromatic:before, .hexagon-chromatic:after { border-color: #2D8E8E; }
+
+.hexagon-unique { background-image: radial-gradient(circle at 50% 0, #F89363, #E16262 80%); border-color: #A34040; }
+.hexagon-unique:before, .hexagon-unique:after { border-color: #A34040; }

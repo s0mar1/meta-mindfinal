@@ -52,16 +52,27 @@ router.get('/', async (req, res, next) => {
         const traits = (me.traits || [])
           .filter(t => t.style > 0)
           .map(t => {
-            const traitData = tftData.traits.find(td => td.apiName === t.name);
+            // Riot API가 주는 이름 (예: TFT14_Trait_StreetDemon) 에서 핵심 부분(streetdemon)만 추출
+            const coreTraitNameFromAPI = t.name.toLowerCase().replace(/^(tft\d+_trait_|set\d+_)/, '');
+
+            // tftData의 특성 목록에서도 apiName에서 핵심 부분만 추출하여 비교
+            const traitData = tftData.traits.find(td => {
+              if (!td.apiName) return false;
+              const coreTraitNameFromData = td.apiName.toLowerCase().replace(/^(trait_icon_\d+_|set\d+_)/, '').replace(/_set\d+$/, '');
+              return coreTraitNameFromData === coreTraitNameFromAPI;
+            });
+            
+            if (!traitData) return null;
+
             return {
-                name: traitData?.name || t.name,
+                name: traitData.name,
                 apiName: t.name,
-                icon: traitData?.icon,
+                icon: traitData.icon,
                 tier_current: t.num_units,
                 style: t.style,
                 backgroundUrl: getTraitBackgroundUrl(t.style),
             };
-        }).sort((a,b) => b.style - a.style);
+        }).filter(Boolean).sort((a,b) => b.style - a.style);
 
         matches.push({
           matchId,

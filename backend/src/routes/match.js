@@ -42,16 +42,24 @@ router.get('/:matchId', async (req, res, next) => {
       const traits = (p.traits || [])
         .filter(t => t.style > 0)
         .map(t => {
-          const traitData = tftData.traits.find(td => td.apiName === t.name);
+          const coreTraitNameFromAPI = t.name.toLowerCase().replace(/^(tft\d+_trait_|set\d+_)/, '');
+          const traitData = tftData.traits.find(td => {
+            if (!td.apiName) return false;
+            const coreTraitNameFromData = td.apiName.toLowerCase().replace(/^(trait_icon_\d+_|set\d+_)/, '').replace(/_set\d+$/, '');
+            return coreTraitNameFromData === coreTraitNameFromAPI;
+          });
+          
+          if (!traitData) return null;
+
           return {
-              name: traitData?.name || t.name,
+              name: traitData.name,
               apiName: t.name,
-              icon: traitData?.icon,
+              icon: traitData.icon,
               tier_current: t.num_units,
               style: t.style,
               backgroundUrl: getTraitBackgroundUrl(t.style),
           };
-      }).sort((a,b) => b.style - a.style);
+      }).filter(Boolean).sort((a,b) => b.style - a.style);
 
       return { ...p, units, traits };
     });

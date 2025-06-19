@@ -1,6 +1,6 @@
+// frontend/src/pages/summoner/components/Trait.jsx
 import React from 'react';
 
-// ⭐️ 스타일 객체를 대폭 단순화하고, 배경 이미지를 사용하도록 변경합니다.
 const styles = {
   traitGroup: {
     position: 'relative',
@@ -10,17 +10,12 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  traitBackground: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    zIndex: 1,
-  },
   traitIcon: {
     position: 'relative',
     width: '20px',
     height: '20px',
     zIndex: 2,
+    filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.8))', // 아이콘에도 그림자 추가
   },
   traitCount: {
     position: 'absolute',
@@ -41,18 +36,20 @@ const styles = {
 };
 
 const Trait = ({ trait }) => {
-  // ⭐️ trait.icon (특성 문양)과 trait.backgroundUrl (육각 배경)을 모두 사용합니다.
-  const iconSrc  = trait.icon;
-  const backgroundSrc = trait.backgroundUrl;
-
-  if (!iconSrc || !backgroundSrc) {
+  if (!trait?.icon) {
     return null; // 데이터가 없으면 렌더링하지 않음
   }
+  
+  // ======================= [핵심 수정] =======================
+  // 백엔드에서 받은 style 이름(bronze, silver 등)에 따라 CSS 클래스를 결정합니다.
+  const styleClassName = `hexagon-${trait.style || 'bronze'}`;
+  // ==========================================================
 
   return (
     <div style={styles.traitGroup} title={`${trait.name} (${trait.tier_current})`}>
-      <img src={backgroundSrc} alt="" style={styles.traitBackground} />
-      <img src={iconSrc} alt={trait.name} style={styles.traitIcon} />
+      {/* 이제 배경은 CSS 클래스로 렌더링합니다. */}
+      <div className={`hexagon-bg ${styleClassName}`} />
+      <img src={trait.icon} alt={trait.name} style={styles.traitIcon} />
       <div style={styles.traitCount}>
         {trait.tier_current}
       </div>
