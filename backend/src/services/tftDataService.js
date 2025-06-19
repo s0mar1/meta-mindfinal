@@ -1,464 +1,123 @@
-// backend/src/services/tftDataService.js
+/**
+ *  TFTDataService – Riot DD + Community Dragon 머지 (champ/trait/item)
+ *  - memory-cache 직접 사용
+ */
+
 import axios from 'axios';
-import { tftCache, getCachedTFT, setCachedTFT } from '../cache/dataCache.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import deepmerge from 'deepmerge';
+import cache from 'memory-cache';
 
-// Community Dragon 기본 URL
-const CDRAGON_BASE_BASE_URL = 'https://raw.communitydragon.org';
-// 수정: TFT JSON 데이터를 위한 올바른 경로로 변경 (ko_kr 포함)
-// 파일명 패턴도 tftchampions.json, tftitems.json, tfttraits.json, tftaugments.json으로 추정하여 수정합니다.
-const CDRAGON_TFT_DATA_PATH = `${CDRAGON_BASE_BASE_URL}/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1`;
-const CDRAGON_ASSET_PATH = `${CDRAGON_BASE_BASE_URL}/latest/game`; // 에셋(이미지) 경로 유지
+const DD_VERSION_URL = 'https://ddragon.leagueoflegends.com/api/versions.json';
+const DD_BASE = (v) => `https://ddragon.leagueoflegends.com/cdn/${v}/data/en_US`;
+const DD_CHAMP_JSON = (v) => `${DD_BASE(v)}/tft-champion.json`;
+const DD_TRAIT_JSON = (v) => `${DD_BASE(v)}/tft-trait.json`;
+const DD_ITEM_JSON  = (v) => `${DD_BASE(v)}/tft-item.json`;
 
-// Data Dragon 기본 URL
-const DDRAGON_VERSIONS_URL = 'https://ddragon.leagueoflegends.com/api/versions.json';
-const DDRAGON_CDN_URL = 'https://ddragon.leagueoflegends.com/cdn';
+const CDRAGON_CHAMP_JSON = 'https://raw.communitydragon.org/latest/json/tft/champions.json';
+const CDRAGON_TRAIT_JSON = 'https://raw.communitydragon.org/latest/json/tft/traits.json';
+const CDRAGON_ITEM_JSON  = 'https://raw.communitydragon.org/latest/json/tft/items.json';
 
-// TFT 에셋 소스 설정 (기본값: ddragon)
-const TFT_ASSET_SOURCE = process.env.TFT_ASSET_SOURCE || 'ddragon';
-console.log(`[TFTDataService] TFT_ASSET_SOURCE: ${TFT_ASSET_SOURCE}`);
+const champIcon = (key) =>
+  `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${key}.png`;
+const traitIcon = (name) =>
+  `https://raw.communitydragon.org/latest/game/assets/ux/tft/traits/${name}.png`;
+const itemIcon = (apiName) =>
+  `https://raw.communitydragon.org/latest/game/assets/maps/tft/icons/hexcore/${apiName.toLowerCase()}.png`;
 
-let cachedTFTData = null;
+const mergeDeep = (a, b) =>
+  deepmerge(a, b, { arrayMerge: (_, src) => src });
 
-// Riot 데이터의 style 숫자(1, 2, 3...)를 CSS 클래스에서 사용할 이름('bronze', 'silver'...)으로 변환합니다.
-function getTraitStyleNameFromTier(style) {
-    switch (style) {
-        case 1: return 'bronze';
-        case 2: return 'silver';
-        case 3: return 'gold';
-        case 4: return 'chromatic';
-        case 5: return 'unique';
-        default: return 'inactive';
-    }
+async function fetchJson(url) {
+  try {
+    const { data } = await axios.get(url, { timeout: 10_000 });
+    return data;
+  } catch {
+    console.warn('[TFT] fetch fail', url);
+    return null;
+  }
 }
 
-/**
- * 활성화된 유닛 수에 따라 정확한 특성 등급을 계산합니다.
- */
-export const getCorrectTraitStyle = (apiName, num_units, tftData) => {
-  const thresholds = tftData.traitThresholds[apiName];
-  if (!thresholds || thresholds.length === 0) {
-    return { styleName: 'inactive' };
-  }
-  let activeStyle = { styleName: 'inactive' };
-  for (const threshold of thresholds) {
-    if (num_units >= threshold.minUnits) {
-      activeStyle = threshold;
-    } else {
-      if (threshold.minUnits > num_units) {
-        activeStyle.nextThreshold = threshold.minUnits;
-        activeStyle.nextStyle = threshold.styleName;
-      }
-      break; 
-    }
-  }
-  return activeStyle;
-};
+export async function getTFTData(forceRefresh = false) {
+  const cacheKey = 'TFT_FULL_DATA';
+  if (!forceRefresh && cache.get(cacheKey)) return cache.get(cacheKey);
 
-// --- Community Dragon 데이터 로딩 ---
-async function loadFromCommunityDragon() {
-    console.log("[TFTDataService] Community Dragon에서 데이터를 불러옵니다...");
-    
-    const toCommunityDragonAbsoluteUrl = (path) => {
-        if (!path) return null;
-        // Community Dragon의 이미지 경로가 /lol-game-data/assets/... 으로 시작하므로
-        // CDRAGON_BASE_BASE_URL에 직접 붙이는 것이 맞습니다.
-        return `${CDRAGON_BASE_BASE_URL}${path.toLowerCase().replace('.tex', '.png')}`;
-    };
+  /* 1) 최신 DD 버전 */
+  const vers = await fetchJson(DD_VERSION_URL);
+  const latest = vers ? vers[0] : '15.12.1';
 
-    try {
-        const championRes = await axios.get(`${CDRAGON_TFT_DATA_PATH}/tftchampions.json`);
-        const itemRes = await axios.get(`${CDRAGON_TFT_DATA_PATH}/tftitems.json`);
-        const traitRes = await axios.get(`${CDRAGON_TFT_DATA_PATH}/tfttraits.json`);
+  const [ddChampRaw, ddTraitRaw, ddItemRaw] = await Promise.all([
+    fetchJson(DD_CHAMP_JSON(latest)),
+    fetchJson(DD_TRAIT_JSON(latest)),
+    fetchJson(DD_ITEM_JSON(latest)),
+  ]);
 
-        let augmentData = [];
-        try {
-            const augmentRes = await axios.get(`${CDRAGON_TFT_DATA_PATH}/tftaugments.json`);
-            augmentData = augmentRes.data;
-        } catch (augmentError) {
-            console.warn("[TFTDataService] Community Dragon에서 증강체 데이터 로드 실패. 증강체 정보가 누락될 수 있습니다:", augmentError.message);
-            augmentData = []; 
-        }
+  let champions = ddChampRaw?.data ? Object.values(ddChampRaw.data) : [];
+  let traits    = ddTraitRaw?.data ? Object.values(ddTraitRaw.data) : [];
+  let items     = ddItemRaw?.data  ? Object.values(ddItemRaw.data)  : [];
 
-        // 챔피언 데이터 매핑 (championRes.data가 배열인지 확인)
-        const champions = Array.isArray(championRes.data) ? championRes.data.map(c => {
-            const charRecord = c.character_record;
-            if (!charRecord || !charRecord.character_id || !charRecord.display_name || charRecord.rarity === undefined || !charRecord.squareIconPath) { 
-                console.warn(`[TFTDataService] 챔피언 '${c.name}' (or unknown)의 character_record가 불완전합니다. 스킵합니다.`);
-                return null;
-            }
-            return {
-                apiName: charRecord.character_id,
-                name: charRecord.display_name,
-                cost: charRecord.rarity, 
-                icon: toCommunityDragonAbsoluteUrl(charRecord.squareIconPath),
-                tileIcon: toCommunityDragonAbsoluteUrl(charRecord.squareIconPath),
-                traits: (charRecord.traits || []).map(t => t.id),
-                abilities: c.abilities || [], 
-                stats: c.stats || {},         
-            };
-        }).filter(Boolean) : []; // Array가 아니면 빈 배열
+  /* 2) CDragon 보강 */
+  const [cdChamp, cdTrait, cdItem] = await Promise.all([
+    fetchJson(CDRAGON_CHAMP_JSON),
+    fetchJson(CDRAGON_TRAIT_JSON),
+    fetchJson(CDRAGON_ITEM_JSON),
+  ]);
 
-        // 아이템 매핑 (itemRes.data가 배열인지 확인)
-        const items = Array.isArray(itemRes.data) ? itemRes.data.map(i => {
-            if (!i.nameId || !i.name || (!i.squareIconPath && !i.icon)) { 
-                console.warn(`[TFTDataService] 아이템 '${i.name}' (or unknown)의 필수 정보가 불완전합니다. 스킵합니다.`);
-                return null;
-            }
-            return {
-                apiName: i.nameId,
-                name: i.name,
-                icon: toCommunityDragonAbsoluteUrl(i.squareIconPath || i.icon), 
-            };
-        }).filter(Boolean) : []; // Array가 아니면 빈 배열
-
-        // 특성 매핑 (traitRes.data가 배열인지 확인)
-        const traits = Array.isArray(traitRes.data) ? traitRes.data.map(t => {
-            if (!t.trait_id || !t.display_name || !t.icon_path) { 
-                console.warn(`[TFTDataService] 특성 '${t.display_name}' (or unknown)의 필수 정보가 불완전합니다. 스킵합니다.`);
-                return null;
-            }
-            return {
-                apiName: t.trait_id,
-                name: t.display_name,
-                icon: toCommunityDragonAbsoluteUrl(t.icon_path),
-                effects: t.conditional_trait_sets || t.effects || [], 
-            };
-        }).filter(Boolean) : []; // Array가 아니면 빈 배열
-
-        // 증강체 매핑 (augmentData가 배열인지 확인)
-        const augments = Array.isArray(augmentData) ? augmentData.map(a => {
-            if (!a.nameId || !a.name || (!a.squareIconPath && !a.icon)) {
-                console.warn(`[TFTDataService] 증강체 '${a.name}' (or unknown)의 필수 정보가 불완전합니다. 스킵합니다.`);
-                return null;
-            }
-            return {
-                apiName: a.nameId,
-                name: a.name,
-                icon: toCommunityDragonAbsoluteUrl(a.squareIconPath || a.icon),
-            };
-        }).filter(Boolean) : []; // Array가 아니면 빈 배열
-
-
-        const traitThresholds = {};
-        traits.forEach(t => {
-            const effectsSource = t.effects?.length > 0 ? t.effects : t.conditional_trait_sets;
-            if (effectsSource && effectsSource.length > 0) {
-                traitThresholds[t.apiName] = effectsSource.map(e => ({
-                    minUnits: e.min_units || e.minUnits,
-                    styleName: e.style_name || getTraitStyleNameFromTier(e.style_idx || e.style), 
-                })).sort((a, b) => a.minUnits - b.minUnits);
-            }
-        });
-
-        let currentSet = 'Unknown';
-        if (champions.length > 0) {
-            const setCounts = {};
-            champions.forEach(c => {
-                // c.apiName이 유효한 문자열인지 다시 확인
-                if (c.apiName && typeof c.apiName === 'string') {
-                    const match = c.apiName.match(/^TFT(\d+)_/);
-                    if (match) {
-                        const setNum = match[1];
-                        setCounts[setNum] = (setCounts[setNum] || 0) + 1;
-                    }
-                }
-            });
-            currentSet = Object.keys(setCounts).sort((a, b) => setCounts[b] - setCounts[a])[0] || 'Unknown';
-        }
-
-        const traitMap = new Map(traits.map(t => [t.apiName.toLowerCase(), t]));
-        const krNameMap = new Map();
-        champions.forEach(c => krNameMap.set(c.apiName.toLowerCase(), c.name));
-        traits.forEach(t => krNameMap.set(t.apiName.toLowerCase(), t.name));
-        items.forEach(i => krNameMap.set(i.apiName.toLowerCase(), i.name));
-        augments.forEach(a => krNameMap.set(a.apiName.toLowerCase(), a.name));
-
-        return {
-            champions, items, traits, augments,
-            traitThresholds,
-            traitMap: Array.from(traitMap.entries()), // Map을 배열로 변환하여 저장
-            krNameMap: Array.from(krNameMap.entries()), // Map을 배열로 변환하여 저장
-            version: 'latest', // Community Dragon은 'latest' 고정
-            currentSet,
-        };
-
-    } catch (error) {
-        // 챔피언, 아이템, 특성 중 하나라도 실패하면 여전히 서버 중단
-        console.error("[TFTDataService] Community Dragon 데이터 로드 실패. 서버 시작을 중단합니다:", error.message);
-        throw new Error("Community Dragon에서 TFT 데이터를 가져오는 데 실패했습니다.");
-    }
-}
-
-// --- Data Dragon 데이터 로딩 및 버전 소급 로직 ---
-async function loadFromDataDragonRecursive() {
-    console.log("[TFTDataService] Data Dragon에서 데이터를 불러옵니다 (버전 소급 포함)...");
-
-    let versions;
-    let latestTFTVersion; // 실제 TFT 데이터에 사용할 버전
-    try {
-        const versionsRes = await axios.get(DDRAGON_VERSIONS_URL);
-        versions = versionsRes.data;
-
-        // TFT 버전은 LoL 버전과 다르게 특정 패턴을 따르거나, versions[0]이 아닐 수 있음.
-        // 현재 롤토체스 세트 14에 맞춰, 14로 시작하는 가장 최신 버전을 찾거나,
-        // Riot이 TFT 전용 버전을 따로 명시하는 경우를 대비하여 유연하게 처리합니다.
-        // 예를 들어, TFT Data Dragon의 versions.json은 `tft-set{N}.{patch}` 형태일 수 있습니다.
-        // 일반 League of Legends versions.json의 첫 번째 요소는 LoL 버전.
-        // tft-set-version.json 같은 것이 있다면 더 좋겠지만, 현재는 versions.json 사용.
-        // 롤체 세트 14 기준으로, 14.x.y 형태의 버전을 우선 사용.
-        // 만약 15.x.x 버전에 롤체 14 데이터가 포함되어 있다면, 해당 버전을 사용하도록 versions[0]를 우선합니다.
-        latestTFTVersion = versions[0]; // Riot의 최신 버전을 우선 사용 (15.x.x 포함)
-        console.log(`[TFTDataService] 확인된 TFT Data Dragon 최신 버전: ${latestTFTVersion}`);
-    } catch (error) {
-        console.error("[TFTDataService] Data Dragon 버전 목록 로드 실패:", error.message);
-        throw new Error("Data Dragon 버전 목록을 가져오는 데 실패했습니다.");
-    }
-
-    const toDataDragonAbsoluteUrl = (version, type, imageName) => {
-        if (!imageName) return null;
-        // Data Dragon TFT 에셋 이미지 URL 패턴:
-        // champion: .../img/champion/{image.full}
-        // item: .../img/item/{image.full}
-        // trait: .../img/trait/{image.full}
-        return `${DDRAGON_CDN_URL}/${version}/img/${type}/${imageName}`;
-    };
-
-    // 특정 에셋을 최신 버전부터 거슬러 올라가며 찾는 재귀 함수
-    async function fetchAssetRecursive(type, assetId, versionsArray, currentIndex = 0) {
-        if (currentIndex >= versionsArray.length) {
-            // console.warn(`[TFTDataService] 에셋 '${assetId}' (${type})를 어떤 버전에서도 찾을 수 없습니다.`);
-            return null;
-        }
-
-        const currentVersion = versionsArray[currentIndex];
-        // TFT Data Dragon 데이터 파일 경로: tft-champion.json, tft-item.json, tft-trait.json
-        const dataUrl = `${DDRAGON_CDN_URL}/${currentVersion}/data/ko_KR/tft-${type}.json`;
-
-        try {
-            const response = await axios.get(dataUrl);
-            const data = response.data.data; // 실제 데이터는 .data 필드 아래에 있음
-            // 수정: response.data.data가 유효한 객체인지 확인
-            const assetData = response.data && typeof response.data.data === 'object' ? response.data.data : {};
-            const asset = Object.values(assetData).find(item => item.id === assetId);
-
-            if (asset) {
-                // 에셋이 존재하고 필수 이미지 필드가 유효한지 확인
-                if (asset.image && asset.image.full) {
-                    const icon = toDataDragonAbsoluteUrl(currentVersion, type, asset.image.full);
-                    const tileIcon = (type === 'champion') ? icon : null; // Data Dragon 챔피언은 tileIcon 필드 없음
-                    return { ...asset, apiName: asset.id, icon, tileIcon, _foundVersion: currentVersion };
-                } else {
-                    // 에셋은 찾았지만 이미지 정보가 불완전하면 이전 버전으로 소급 (누락된 변경 없는 정보 케이스)
-                    console.warn(`[TFTDataService] 에셋 '${assetId}' (${type})의 이미지 정보가 불완전합니다. 이전 버전으로 소급 시도.`);
-                    return await fetchAssetRecursive(type, assetId, versionsArray, currentIndex + 1);
-                }
-            } else {
-                // 현재 버전에서 에셋 자체를 못 찾았다면 이전 버전으로 재귀 호출 (누락된 변경 없는 정보 케이스)
-                return await fetchAssetRecursive(type, assetId, versionsArray, currentIndex + 1);
-            }
-        } catch (error) {
-            if (error.response && error.response.status === 404) {
-                // 데이터 파일 자체가 없으면 다음 버전으로 시도
-                return await fetchAssetRecursive(type, assetId, versionsArray, currentIndex + 1);
-            }
-            console.error(`[TFTDataService] 버전 ${currentVersion}에서 ${type} 데이터 로드 중 오류:`, error.message);
-            throw error; // 다른 종류의 에러는 throw
-        }
-    }
-
-    // 최신 Data Dragon의 전체 챔피언, 아이템, 특성 ID 목록을 가져옵니다.
-    // 만약 이 단계에서 실패하면, Community Dragon에서 ID 목록을 가져와 대체합니다.
-    let championsRawIds = [];
-    let itemsRawIds = [];
-    let traitsRawIds = [];
-    try {
-        const [championsRes, itemsRes, traitsRes] = await Promise.all([
-            axios.get(`${DDRAGON_CDN_URL}/${latestTFTVersion}/data/ko_KR/tft-champion.json`),
-            axios.get(`${DDRAGON_CDN_URL}/${latestTFTVersion}/data/ko_KR/tft-item.json`),
-            axios.get(`${DDRAGON_CDN_URL}/${latestTFTVersion}/data/ko_KR/tft-trait.json`),
-        ]);
-        // 수정: .data?.data?.map으로 안전한 접근
-        championsRawIds = championsRes.data?.data ? Object.values(championsRes.data.data).map(c => c.id) : [];
-        itemsRawIds = itemsRes.data?.data ? Object.values(itemsRes.data.data).map(i => i.id) : [];
-        traitsRawIds = traitsRes.data?.data ? Object.values(traitsRes.data.data).map(t => t.id) : [];
-    } catch (e) {
-        console.warn(`[TFTDataService] 최신 Data Dragon (${latestTFTVersion}) ID 목록 로드 실패. Community Dragon에서 대체 로드합니다:`, e.message);
-        try {
-            // 새로운 CDRAGON_TFT_DATA_PATH 상수 사용
-            const cdragonChampRes = await axios.get(`${CDRAGON_TFT_DATA_PATH}/tftchampions.json`);
-            const cdragonItemRes = await axios.get(`${CDRAGON_TFT_DATA_PATH}/tftitems.json`);
-            const cdragonTraitRes = await axios.get(`${CDRAGON_TFT_DATA_PATH}/tfttraits.json`);
-            championsRawIds = cdragonChampRes.data.map(c => c.apiName);
-            itemsRawIds = cdragonItemRes.data.map(i => i.apiName);
-            traitsRawIds = cdragonTraitRes.data.map(t => t.apiName);
-            console.log("[TFTDataService] Community Dragon에서 에셋 ID 목록 대체 로드 성공.");
-        } catch (cdragonErr) {
-            console.error("[TFTDataService] Community Dragon ID 로드도 실패했습니다. 데이터 로드가 불가능합니다.", cdragonErr.message);
-            throw new Error("TFT 에셋 ID를 가져올 수 없습니다. 인터넷 연결 또는 Data/Community Dragon API 상태를 확인하세요.");
-        }
-    }
-
-    // 각 ID에 대해 재귀적으로 데이터 드래곤 버전을 거슬러 올라가며 데이터 로드
-    const championsPromises = championsRawIds.map(id => fetchAssetRecursive('champion', id, versions));
-    const itemsPromises = itemsRawIds.map(id => fetchAssetRecursive('item', id, versions));
-    const traitsPromises = traitsRawIds.map(id => fetchAssetRecursive('trait', id, versions));
-
-    const [champions, items, traits] = await Promise.all([
-        Promise.all(championsPromises),
-        Promise.all(itemsPromises),
-        Promise.all(traitsPromises),
-    ]);
-
-    const filteredChampions = champions.filter(Boolean);
-    const filteredItems = items.filter(Boolean);
-    const filteredTraits = traits.filter(Boolean);
-
-    // Data Dragon은 TFT Augments를 제공하지 않으므로, Community Dragon에서 가져옵니다.
-    let augments = [];
-    try {
-        // 수정: 새로운 CDRAGON_TFT_DATA_PATH 상수 사용
-        const augmentRes = await axios.get(`${CDRAGON_TFT_DATA_PATH}/tftaugments.json`);
-        const toCommunityDragonAbsoluteUrl = (path) => {
-            if (!path) return null;
-            return `${CDRAGON_ASSET_PATH}/${path.toLowerCase().replace('.tex', '.png')}`;
-        };
-        augments = augmentRes.data.map(a => ({
-            ...a,
-            apiName: a.apiName,
-            name: a.name,
-            icon: toCommunityDragonAbsoluteUrl(a.icon),
-        }));
-    } catch (error) {
-        console.warn("[TFTDataService] Data Dragon 모드에서 증강체(Augments) 데이터를 Community Dragon에서 가져오는 데 실패했습니다. 증강체 정보가 누락될 수 있습니다:", error.message);
-    }
-
-    const traitThresholds = {};
-    filteredTraits.forEach(t => {
-        if (t.effects && t.effects.length > 0) {
-            traitThresholds[t.apiName] = t.effects.map(e => ({
-                minUnits: e.min_units || e.minUnits,
-                styleName: getTraitStyleNameFromTier(e.style),
-            })).sort((a, b) => a.minUnits - b.minUnits);
-        }
+  if (cdChamp) {
+    champions = champions.map((c) => {
+      const extra = cdChamp.find((x) => x.apiName === c.apiName);
+      let merged  = extra ? mergeDeep(c, extra) : c;
+      if (!merged.icon) merged.icon = champIcon(merged.apiName.toLowerCase());
+      if (!('cost' in merged)) merged.cost = extra?.cost ?? merged.tier ?? 0;
+      return merged;
     });
+  }
 
-    let currentSet = 'Unknown';
-    if (filteredChampions.length > 0) {
-        const setCounts = {};
-        filteredChampions.forEach(c => {
-            const match = c.apiName.match(/^TFT(\d+)_/);
-            if (match) {
-                const setNum = match[1];
-                setCounts[setNum] = (setCounts[setNum] || 0) + 1;
-            }
-        });
-        currentSet = Object.keys(setCounts).sort((a, b) => setCounts[b] - setCounts[a])[0] || 'Unknown';
-    }
+  if (cdTrait) {
+    traits = traits.map((t) => {
+      const extra = cdTrait.find((x) => x.apiName === t.apiName);
+      let merged  = extra ? mergeDeep(t, extra) : t;
+      if (!merged.icon) merged.icon = traitIcon(merged.apiName.toLowerCase());
+      if (!merged.sets?.length && extra?.sets?.length) merged.sets = extra.sets;
+      return merged;
+    });
+  }
 
+  if (cdItem) {
+    items = items.length ? items : cdItem;         // DD 없으면 CDragon 전부 사용
+    items = items.map((it) => ({
+      ...it,
+      icon: it.icon || itemIcon(it.apiName),
+    }));
+  }
 
-    const traitMap = new Map(filteredTraits.map(t => [t.apiName.toLowerCase(), t]));
-    const krNameMap = new Map();
-    champions.forEach(c => krNameMap.set(c.apiName.toLowerCase(), c.name));
-    traits.forEach(t => krNameMap.set(t.apiName.toLowerCase(), t.name));
-    items.forEach(i => krNameMap.set(i.apiName.toLowerCase(), i.name));
-    augments.forEach(a => krNameMap.set(a.apiName.toLowerCase(), a.name));
+  if (!champions.length || !traits.length || !items.length)
+    throw new Error('TFT 데이터 로드 실패: champs/traits/items 비어 있음');
 
-
-    return {
-        champions: filteredChampions,
-        items: filteredItems,
-        traits: filteredTraits,
-        augments,
-        traitThresholds,
-        traitMap: Array.from(traitMap.entries()),
-        krNameMap: Array.from(krNameMap.entries()),
-        version: latestTFTVersion,
-        currentSet,
-    };
+  const payload = { version: latest, champions, traits, items };
+  cache.put(cacheKey, payload, 1000 * 60 * 60 * 12); // 12시간
+  return payload;
 }
 
+/* ──────────────────────────────────────────────── */
+/*  summoner.js / match.js 호환용 export            */
+export const loadTFTData = getTFTData;
 
 /**
- * TFT 정적 데이터를 로드하고 캐싱하는 메인 함수
+ * getCorrectTraitStyle(apiName, unitCnt, tftData)
+ * - unitCnt(필드 num_units) 에 맞는 스타일 계산
  */
-export async function loadTFTData() {
-    const cacheKey = TFT_ASSET_SOURCE;
-    let cached = getCachedTFT(cacheKey);
-    
-    // 캐시가 존재하면 유효성 검사
-    if (cached) {
-        // 캐시된 데이터의 Map을 다시 Map 객체로 변환
-        cached.traitMap = new Map(cached.traitMap);
-        cached.krNameMap = new Map(cached.krNameMap);
+export function getCorrectTraitStyle(apiName, unitCnt, tftData) {
+  const styleMap = { bronze: 1, silver: 2, gold: 3, chromatic: 4, prismatic: 4 };
+  const trait = tftData.traits.find((t) => t.apiName === apiName);
+  if (!trait) return { styleName: 'none', styleOrder: 0 };
 
-        // 캐시된 데이터의 필수 요소가 유효한지 다시 한번 확인
-        if (cached.champions && Array.isArray(cached.champions) && cached.champions.length > 0 &&
-            cached.items && Array.isArray(cached.items) && cached.items.length > 0 &&
-            cached.traits && Array.isArray(cached.traits) && cached.traits.length > 0) {
-            console.log(`[TFTDataService] TFT 데이터를 캐시에서 불러옵니다 (${TFT_ASSET_SOURCE}).`);
-            return cached;
-        } else {
-            console.warn(`[TFTDataService] 캐시된 데이터가 불완전합니다 (${TFT_ASSET_SOURCE}). 캐시를 비우고 새로 로드합니다.`);
-            tftCache.del(cacheKey);
-            cached = null;
-        }
+  let styleName = 'none';
+  let styleOrder = 0;
+  (trait.sets || trait.levels || trait.tiers || []).forEach((lv) => {
+    if (unitCnt >= lv.min) {
+      styleName = lv.style.toLowerCase();
+      styleOrder = styleMap[styleName] || 0;
     }
-    
-    console.log(`[TFTDataService] TFT 데이터 로딩 시작: ${TFT_ASSET_SOURCE} 사용...`);
-    let payload;
-    try {
-        if (TFT_ASSET_SOURCE === 'cdragon') {
-            payload = await loadFromCommunityDragon();
-        } else {
-            // Data Dragon 로드 시도
-            payload = await loadFromDataDragonRecursive();
-            
-            // Data Dragon 로드 후 유효성 재확인. 실패 시 Community Dragon으로 Fallback
-            if (!payload.champions || !Array.isArray(payload.champions) || payload.champions.length === 0 ||
-                !payload.items || !Array.isArray(payload.items) || payload.items.length === 0 ||
-                !payload.traits || !Array.isArray(payload.traits) || payload.traits.length === 0) {
-                
-                console.warn(`[TFTDataService] Data Dragon에서 핵심 데이터 로드 실패 또는 데이터가 불완전합니다. Community Dragon으로 대체 로드합니다.`);
-                // 캐시 키를 CDragon으로 변경하여 캐시 오염 방지
-                tftCache.del('ddragon'); // 기존 ddragon 캐시 삭제 (불완전하므로)
-                payload = await loadFromCommunityDragon(); // Community Dragon으로 대체 로드
-                
-                // 대체 로드 후에도 데이터가 유효한지 최종 검사
-                if (!payload.champions || !Array.isArray(payload.champions) || payload.champions.length === 0 ||
-                    !payload.items || !Array.isArray(payload.items) || payload.items.length === 0 ||
-                    !payload.traits || !Array.isArray(payload.traits) || payload.traits.length === 0) {
-                    throw new Error("Data Dragon 및 Community Dragon 모두에서 핵심 TFT 정적 데이터 로드에 실패했습니다.");
-                }
-            }
-        }
-
-        // 최종적으로 로드된 payload의 핵심 데이터 유효성 최종 검사
-        if (!payload.champions || !Array.isArray(payload.champions) || payload.champions.length === 0 ||
-            !payload.items || !Array.isArray(payload.items) || payload.items.length === 0 ||
-            !payload.traits || !Array.isArray(payload.traits) || payload.traits.length === 0) {
-            throw new Error("핵심 TFT 정적 데이터(챔피언, 아이템, 특성)를 최종적으로 로드하는 데 실패했습니다.");
-        }
-        
-        // 캐시 저장 시 Map을 배열로 변환
-        const payloadToCache = { 
-            ...payload,
-            traitMap: Array.from(payload.traitMap),
-            krNameMap: Array.from(payload.krNameMap),
-        };
-        setCachedTFT(cacheKey, payloadToCache);
-        console.log(`[TFTDataService] TFT 데이터 로딩 및 캐싱 완료 (${TFT_ASSET_SOURCE}).`);
-        
-        // 반환할 때는 Map 객체로 다시 변환
-        payload.traitMap = new Map(payload.traitMap);
-        payload.krNameMap = new Map(payload.krNameMap);
-        return payload;
-
-    } catch (error) {
-        console.error("[TFTDataService] TFT 데이터 로딩 중 치명적인 오류 발생. 서버 시작을 중단합니다:", error);
-        // 오류 발생 시 캐시를 비워 불완전한 데이터가 재사용되지 않도록 함
-        tftCache.del(cacheKey); 
-        throw new Error(`TFT 데이터 로딩 실패. TFT_ASSET_SOURCE: ${TFT_ASSET_SOURCE}. 오류: ${error.message}`);
-    }
+  });
+  return { styleName, styleOrder };
 }

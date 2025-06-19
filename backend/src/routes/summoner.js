@@ -20,7 +20,7 @@ router.get('/', async (req, res, next) => {
         if (hit) return res.json(hit);
     }
     
-    const tftData = loadTFTData(); // 여기서 로드된 tftData는 이미 가공된 icon/tileIcon URL을 포함합니다.
+    const tftData = await loadTFTData(); // 여기서 로드된 tftData는 이미 가공된 icon/tileIcon URL을 포함합니다.
     const account = await getAccountByRiotId(gameName, tagLine);
     const summonerInfo = await getSummonerByPuuid(account.puuid);
     const leagueEntry = await getLeagueEntriesBySummonerId(summonerInfo.id);
@@ -37,7 +37,9 @@ router.get('/', async (req, res, next) => {
         
         const units = me.units.map(u => {
           const champData = tftData.champions.find(c => c.apiName === u.character_id);
-          const itemData = (u.itemNames || []).map(itemName => tftData.items.find(i => i.apiName === itemName)).filter(Boolean);
+          const itemData = (u.itemNames || []).map(itemName =>
+             (tftData.items ?? []).find((i) => i.apiName === itemName)
+          ).filter(Boolean);
           
           return {
             character_id: u.character_id,
