@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadTFTData } from './services/tftDataService.js'; // [수정] 데이터 로더 가져오기
 
 import summonerRoutes from './routes/summoner.js';
 import matchRoutes from './routes/match.js';
@@ -13,7 +14,6 @@ import rankingRoutes from './routes/ranking.js';
 import staticDataRoutes from './routes/staticData.js';
 import deckBuilderRoutes from './routes/deckBuilder.js';
 
-import './services/scheduler.js';
 import connectDB from './config/db.js';
 import errorHandler from './middlewares/errorHandler.js';
 
@@ -24,13 +24,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-connectDB();
 
 app.use(cors());
 app.use(express.json());
 
-// [핵심 추가] tft-datadragon 폴더 전체를 웹으로 제공합니다.
-app.use('/datadragon', express.static(path.join(__dirname, '../tft-datadragon')));
+// [삭제] 더 이상 로컬 데이터 드래곤 폴더를 제공할 필요가 없습니다.
+// app.use('/datadragon', express.static(path.join(__dirname, '../tft-datadragon')));
 
 app.use('/api/static-data', staticDataRoutes);
 app.use('/api/summoner', summonerRoutes);
@@ -46,6 +45,29 @@ app.get('/', (req, res) => {
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+/**
+ * [핵심 수정] 서버를 시작하는 비동기 함수
+ * 데이터 로딩이 완료된 후에 서버를 실행합니다.
+ */
+const startServer = async () => {
+    try {
+        console.log('데이터베이스 연결을 시작합니다...');
+        await connectDB();
+        console.log('MongoDB Connected.');
+
+        console.log('TFT 기본 데이터 로딩을 시작합니다...');
+        await loadTFTData(); // 데이터가 로드될 때까지 기다립니다.
+        
+        // [수정] 스케줄러는 데이터 로딩 후에 import 하여 실행합니다.
+        await import('./services/scheduler.js');
+
+        app.listen(PORT, () => {
+            console.log(`모든 준비 완료. 서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
+        });
+    } catch (error) {
+        console.error('서버 시작에 실패했습니다:', error);
+        process.exit(1); // 실패 시 프로세스 종료
+    }
+};
+
+startServer(); // 서버 시작 함수 호출

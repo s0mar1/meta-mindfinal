@@ -1,8 +1,8 @@
 // backend/src/routes/match.js
-
 import express from 'express';
 import { getMatchDetail } from '../services/riotApi.js';
-import { loadTFTData, getTraitBackgroundUrl } from '../services/tftDataService.js';
+// [수정] getTraitStyleInfo 대신 새로운 getCorrectTraitStyle 함수를 가져옵니다.
+import { loadTFTData, getCorrectTraitStyle } from '../services/tftDataService.js';
 import { getAccountsByPuuids } from '../services/riotAccountApi.js';
 
 const router = express.Router();
@@ -40,26 +40,22 @@ router.get('/:matchId', async (req, res, next) => {
       });
 
       const traits = (p.traits || [])
-        .filter(t => t.style > 0)
+        .filter(t => t.style > 0) // style > 0은 '활성화된 특성'을 의미하므로 이 필터는 유지합니다.
         .map(t => {
-          const coreTraitNameFromAPI = t.name.toLowerCase().replace(/^(tft\d+_trait_|set\d+_)/, '');
-          const traitData = tftData.traits.find(td => {
-            if (!td.apiName) return false;
-            const coreTraitNameFromData = td.apiName.toLowerCase().replace(/^(trait_icon_\d+_|set\d+_)/, '').replace(/_set\d+$/, '');
-            return coreTraitNameFromData === coreTraitNameFromAPI;
-          });
-          
+          const traitData = tftData.traits.find(td => td.apiName === t.name);
           if (!traitData) return null;
+          
+          // [핵심 수정] 유닛 수(t.num_units)를 기반으로 정확한 등급을 다시 계산합니다.
+          const styleInfo = getCorrectTraitStyle(t.name, t.num_units, tftData);
 
           return {
               name: traitData.name,
               apiName: t.name,
               icon: traitData.icon,
               tier_current: t.num_units,
-              style: t.style,
-              backgroundUrl: getTraitBackgroundUrl(t.style),
+              styleName: styleInfo.styleName, // 정확하게 계산된 스타일 이름
           };
-      }).filter(Boolean).sort((a,b) => b.style - a.style);
+        }).filter(Boolean).sort((a,b) => b.tier_current - a.tier_current); // 정렬 기준을 tier_current로 변경 (선택사항)
 
       return { ...p, units, traits };
     });
@@ -74,7 +70,6 @@ router.get('/:matchId', async (req, res, next) => {
     };
 
     res.json(responsePayload);
-
   } catch (err) {
     next(err);
   }

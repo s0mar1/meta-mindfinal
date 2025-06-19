@@ -1,76 +1,113 @@
 // backend/src/services/tftDataService.js
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+// fs 모듈은 더 이상 필요 없으므로 삭제합니다.
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ❗ 다음 패치 시, 이 버전 번호만 수정하면 됩니다.
-const LATEST_PATCH_VERSION = '15.12.1';
-
-const BASE_DATA_PATH = path.join(__dirname, `../../tft-datadragon/${LATEST_PATCH_VERSION}/data/ko_kr`);
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
-const BASE_IMAGE_URL = `${BACKEND_URL}/datadragon/${LATEST_PATCH_VERSION}/img`;
-
 let cachedTFTData = null;
 
-// 특성 등급별 배경 이미지 URL을 생성하는 함수 (외부에서 사용 가능하도록 export)
-export const getTraitBackgroundUrl = (style) => {
-    const styleNum = style > 5 ? 5 : style;
-    return `${BASE_IMAGE_URL}/teamplanner_trait_hexes/${styleNum}.png`;
+// Riot 데이터의 style 숫자(1, 2, 3...)를 CSS 클래스에서 사용할 이름('bronze', 'silver'...)으로 변환합니다.
+function getTraitStyleNameFromTier(style) {
+    switch (style) {
+        case 1: return 'bronze';
+        case 2: return 'silver';
+        case 3: return 'gold';
+        case 4: return 'chromatic';
+        case 5: return 'unique';
+        default: return 'inactive';
+    }
+}
+
+/**
+ * 활성화된 유닛 수에 따라 정확한 특성 등급을 계산합니다.
+ */
+export const getCorrectTraitStyle = (apiName, num_units, tftData) => {
+  const thresholds = tftData.traitThresholds[apiName];
+  if (!thresholds || thresholds.length === 0) {
+    return { styleName: 'inactive' };
+  }
+  let activeStyle = { styleName: 'inactive' };
+  for (const threshold of thresholds) {
+    if (num_units >= threshold.minUnits) {
+      activeStyle = threshold;
+    } else {
+      break; 
+    }
+  }
+  return activeStyle;
 };
 
-export function loadTFTData() {
+/**
+ * [핵심 변경] 로컬 파일 대신 데이터 드래곤에서 직접 최신 데이터를 로드하는 비동기 함수
+ */
+export async function loadTFTData() {
   if (cachedTFTData) return cachedTFTData;
-  console.log(`[데이터 서비스] 로컬 데이터 드래곤 (${LATEST_PATCH_VERSION}) 파일을 로드합니다...`);
-
+  
   try {
-    const championsRaw = JSON.parse(fs.readFileSync(path.join(BASE_DATA_PATH, 'tft-champion.json'), 'utf-8'));
-    const itemsRaw = JSON.parse(fs.readFileSync(path.join(BASE_DATA_PATH, 'tft-item.json'), 'utf-8'));
-    const traitsRaw = JSON.parse(fs.readFileSync(path.join(BASE_DATA_PATH, 'tft-trait.json'), 'utf-8'));
+    console.log('[데이터 서비스] 라이엇 API에서 최신 패치 버전을 가져옵니다...');
+    const versionsResponse = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
+    const versions = await versionsResponse.json();
+    const latestVersion = versions[0];
+    console.log(`[데이터 서비스] 확인된 최신 버전: ${latestVersion}`);
 
-    const toAbsoluteUrl = (imageObject) => {
-        if (!imageObject?.full || !imageObject?.group) return null;
-        const subfolder = imageObject.group.toLowerCase();
-        const fileName = imageObject.full.toLowerCase();
-        return `${BASE_IMAGE_URL}/${subfolder}/${fileName}`;
-    };
+    const DATA_URL_BASE = `https://ddragon.leagueoflegends.com/cdn/${latestVersion}/data/ko_kr`;
+    const IMAGE_URL_BASE = `https://ddragon.leagueoflegends.com/cdn/${latestVersion}/img`;
 
-    const getTileIconUrl = (imageObject) => {
-        if (!imageObject?.full || !imageObject?.group) return null;
-        const subfolder = imageObject.group.toLowerCase();
-        let fileName = imageObject.full.toLowerCase();
-        if (fileName.includes('.tft_set')) {
-            fileName = fileName.replace('.tft_set', '_square.tft_set');
-        } else {
-            const extension = path.extname(fileName);
-            const baseName = path.basename(fileName, extension);
-            if (!baseName.endsWith('_square')) fileName = `${baseName}_square${extension}`;
-        }
-        return `${BASE_IMAGE_URL}/${subfolder}/${fileName}`;
-    };
-    
+    console.log('[데이터 서비스] 최신 챔피언, 아이템, 특성 데이터를 다운로드합니다...');
+    const [championsResponse, itemsResponse, traitsResponse] = await Promise.all([
+        fetch(`${DATA_URL_BASE}/tft-champion.json`),
+        fetch(`${DATA_URL_BASE}/tft-item.json`),
+        fetch(`${DATA_URL_BASE}/tft-trait.json`)
+    ]);
+
+    const championsRaw = await championsResponse.json();
+    const itemsRaw = await itemsResponse.json();
+    const traitsRaw = await traitsResponse.json();
+    console.log('[데이터 서비스] 데이터 다운로드 완료.');
+
     const championsData = Object.values(championsRaw.data);
-    const traitsData = Object.values(traitsRaw.data);
     const itemsData = Object.values(itemsRaw.data);
+    const traitsData = Object.values(traitsRaw.data);
     
-    const champions = championsData.map(c => ({ ...c, apiName: c.id, icon: toAbsoluteUrl(c.image), tileIcon: getTileIconUrl(c.image) }));
-    const items = itemsData.map(i => ({ ...i, apiName: i.id, icon: toAbsoluteUrl(i.image) }));
-    const traits = traitsData.map(t => ({ ...t, apiName: t.id, icon: toAbsoluteUrl(t.image) }));
+    const traitThresholds = {};
+    traitsData.forEach(t => {
+      if (t.effects && t.effects.length > 0) {
+        traitThresholds[t.id] = t.effects.map(e => ({
+          minUnits: e.minUnits,
+          styleName: getTraitStyleNameFromTier(e.style),
+        })).sort((a, b) => a.minUnits - b.minUnits);
+      }
+    });
+    
+    const toAbsoluteUrl = (imageObject, type) => {
+        if (!imageObject?.full) return null;
+        return `${IMAGE_URL_BASE}/${type}/${imageObject.full}`;
+    };
+
+    const champions = championsData.map(c => ({ ...c, apiName: c.id, icon: toAbsoluteUrl(c.image, 'champion') }));
+    const items = itemsData.map(i => ({ ...i, apiName: i.id, icon: toAbsoluteUrl(i.image, 'item') }));
+    const traits = traitsData.map(t => ({ ...t, apiName: t.id, icon: toAbsoluteUrl(t.image, 'trait') }));
       
     const traitMap = new Map(traits.map(t => [t.apiName.toLowerCase(), t]));
     const krNameMap = new Map();
     champions.forEach(c => krNameMap.set(c.apiName.toLowerCase(), c.name));
     traits.forEach(t => krNameMap.set(t.apiName.toLowerCase(), t.name));
 
-    cachedTFTData = { champions, items, traits, traitMap, krNameMap, currentSet: '14' };
+    cachedTFTData = {
+        champions, items, traits, traitMap, krNameMap,
+        traitThresholds,
+        version: latestVersion,
+    };
     
-    console.log(`[데이터 서비스] 전체 데이터 가공 완료. 챔피언 ${champions.length}개, 특성 ${traits.length}개 로드.`);
+    console.log(`[데이터 서비스] 최신 데이터(${latestVersion}) 가공 및 캐싱 완료.`);
     return cachedTFTData;
 
   } catch (error) {
-      console.error("치명적 오류: 로컬 데이터 파일을 읽거나 파싱하는 데 실패했습니다.", error);
-      throw new Error("TFT 데이터 로딩 실패. 파일 이름과 경로를 확인하세요.");
+      console.error("치명적 오류: 데이터 드래곤에서 데이터를 가져오거나 가공하는 데 실패했습니다.", error);
+      // 서버가 시작되지 못하도록 에러를 다시 던집니다.
+      throw new Error("TFT 데이터 로딩 실패. 인터넷 연결 또는 라이엇 API 상태를 확인하세요.");
   }
 }
