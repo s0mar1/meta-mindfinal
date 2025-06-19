@@ -36,7 +36,7 @@ const Unit = ({ unit }) => {
     >
       <div style={{ ...styles.starsContainer, color: getCostColor(unit.cost) }}>{'★'.repeat(unit.tier)}</div>
       {/* [핵심 수정] image_url -> icon */}
-      <img src={unit.icon} alt={unit.name} style={{ ...styles.unitImage, ...getCostBorderStyle(unit.cost) }} />
+      <img src={unit.image_url || unit.icon || unit.tileIcon} alt={unit.name} style={{ ...styles.unitImage, ...getCostBorderStyle(unit.cost) }} />
       <div style={styles.itemsContainer}>{unit.items.map((it, idx) => it.icon && <Item key={idx} item={it} />)}</div>
     </div>
   );

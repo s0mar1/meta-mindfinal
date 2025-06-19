@@ -8,7 +8,7 @@ const styles = {
 
 const Item = ({ item }) => (
   // [핵심 수정] item.image_url -> item.icon
-  <img src={item.icon} alt={item.name} style={styles.itemImage} title={item.name}/>
+  <img src={item.image_url || item.icon} alt={item.name} style={styles.itemImage} title={item.name}/>
 );
 
 export default Item;

@@ -14,7 +14,8 @@ const Trait = ({ trait }) => {
     <div className="trait-hexagon" title={`${trait.name} (${trait.tier_current})`}>
       {/* 동적으로 생성된 클래스를 적용 */}
       <div className={backgroundClassName} />
-      <img src={trait.icon} alt={trait.name} className="trait-hexagon-icon" />
+      <img src={trait.image_url || trait.icon}
+              alt={trait.name} className="trait-hexagon-icon" />
       <div className="trait-hexagon-count">
         {trait.tier_current}
       </div>
