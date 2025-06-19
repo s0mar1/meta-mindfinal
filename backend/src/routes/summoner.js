@@ -20,7 +20,7 @@ router.get('/', async (req, res, next) => {
         if (hit) return res.json(hit);
     }
     
-    const tftData = loadTFTData();
+    const tftData = loadTFTData(); // 여기서 로드된 tftData는 이미 가공된 icon/tileIcon URL을 포함합니다.
     const account = await getAccountByRiotId(gameName, tagLine);
     const summonerInfo = await getSummonerByPuuid(account.puuid);
     const leagueEntry = await getLeagueEntriesBySummonerId(summonerInfo.id);
@@ -42,10 +42,10 @@ router.get('/', async (req, res, next) => {
           return {
             character_id: u.character_id,
             name: champData?.name || u.character_id.replace(/^TFT\d+_/, ''),
-            icon: champData?.tileIcon,
+            icon: champData?.tileIcon || champData?.icon, // tftDataService에서 가공된 tileIcon 또는 icon URL을 사용합니다.
             tier: u.tier,
             cost: champData?.cost || 0,
-            items: itemData.map(it => ({ name: it.name, icon: it.icon }))
+            items: itemData.map(it => ({ name: it.name, icon: it.icon })) // item.icon은 tftDataService에서 이미 가공된 URL입니다.
           };
         });
 
@@ -61,7 +61,7 @@ router.get('/', async (req, res, next) => {
             return {
                 name: traitData.name,
                 apiName: t.name,
-                icon: traitData.icon,
+                icon: traitData.icon, // traitData.icon은 tftDataService에서 이미 가공된 URL입니다.
                 tier_current: t.num_units,
                 styleName: styleInfo.styleName, // 정확하게 계산된 스타일 이름
             };
